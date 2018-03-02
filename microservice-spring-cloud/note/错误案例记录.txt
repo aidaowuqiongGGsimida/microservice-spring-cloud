@@ -1,0 +1,15 @@
+使用ribbon做负载均衡的时候，出现以下问题：
+java.lang.IllegalStateException: No instances available for localhost at org.springframework.cloud.netflix.ribbon.RibbonLoadBalancerClient.execute(RibbonLoadBalancerClient.java:75) ~[spring-cloud-netflix-core-1.4.3.RELEASE.jar:1.4.3.RELEASE]
+	at org.springframework.cloud.client.loadbalancer.LoadBalancerInterceptor.intercept(LoadBalancerInterceptor.java:55)
+
+解决方法：在配置RestTemplate的时候，设置RequestFactory
+@LoadBalanced
+@Bean
+RestTemplate loadBalanced() {
+	RestTemplate rt = new RestTemplate();
+	rt.setRequestFactory(new HttpComponentsClientHttpRequestFactory());
+	return rt;
+}
+
+注意：以上问题是在生成RestTemplate的时候，如果设置RequestFactory，则在使用restTemplate.getForObject方法的时候，需要真实的ip加端口，而不能是serviceid。
+相反的，如果没有设置RequestFactory，则使用restTemplate.getForObject方法的时候，需要加serviceid而不能是真实ip加端口，不然会报springcloud nested exception is java.net.UnknownHostException错误。
