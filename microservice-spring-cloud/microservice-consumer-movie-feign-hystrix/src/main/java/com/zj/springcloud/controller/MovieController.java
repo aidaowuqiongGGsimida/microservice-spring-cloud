@@ -6,23 +6,17 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.zj.springcloud.entity.User;
-import com.zj.springcloud.repository.UserRepository;
+import com.zj.springcloud.feign.UserFeignClient;
 
 @RestController
-public class UserController {
+public class MovieController {
 
 	@Autowired
-	private UserRepository userRepository;
+	private UserFeignClient userFeignClient;
 	
-	@GetMapping("/user/{id}")
-	public User user(@PathVariable Long id){
-		return userRepository.findOne(id); 
+	@GetMapping("/movie/{id}")
+	public User movie(@PathVariable Long id){
+		return userFeignClient.user(id);
 	}
-	
-	@GetMapping("/user2")
-	public User user2(User user){
-		return user; 
-	}
-	
 	
 }

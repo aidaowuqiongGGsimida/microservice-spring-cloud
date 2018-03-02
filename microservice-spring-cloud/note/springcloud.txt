@@ -1,4 +1,13 @@
 官网https://projects.spring.io/spring-cloud/的右边，有springcloud各个版本及Reference(文档)
+
+坑：如果项目启动，然后第一次请求timeout，第二次以后就不会，可以参考以下解决方式：
+在该项目的yml配置文件配置以下：
+hystrix.command.default.execution.isolation.thread.timeoutInMilliseconds: 5000
+hystrix.command.default.execution.timeout.enabled: false
+feign.hystrix.enabled: false
+
+
+
 注意：由于配置采用yml，而yml文件对空格有严格要求，所以需要添加插件来降低操作难度，并且插件提供快速创建springboot项目的支持。spring-tool-suite
 安装教程：
 插件官网：https://spring.io/tools/sts/all
@@ -208,9 +217,201 @@ microservice-provider-user:
   ribbon:
     listOfServers: localhost:7900   
 
-四、Feign  [fe?n]
+四、Feign  [feIn]
 一个声明式的REST客户端，它让写一个web服务变得容易。创建一个接口并添加注解就可以开始使用Feign了。它提供可插拔的Feign注解和JAX-RS注解，并且提供可插拔的编码工具和解码工具。SpringCloud为Feign添加SpringMVC的注解以便使用同样的Http转化器。它还整合了Ribbon和Eureka来提供负载均衡。
+【案例】
+@RestController
+public class MovieController {
+
+	@Autowired
+	private UserFeignClient userFeignClient;
+	
+	@GetMapping("/movie/{id}")
+	public User movie(@PathVariable Long id){
+		return userFeignClient.user(id);
+	}
+}
+
+@FeignClient("microservice-provider-user")
+public interface UserFeignClient {
+	
+	@RequestMapping(value="/user/{id}",method=RequestMethod.GET)
+	public User user(@PathVariable("id") Long id);
+
+	//坑：虽然这里加入了GET的方法注解，但是由于参数为对象，所以feign依然很使用post方式
+	@RequestMapping(value="/user2",method=RequestMethod.GET)
+	public User user2(User user);
+}
+
+@SpringBootApplication
+@EnableEurekaClient
+@EnableFeignClients
+public class MicroserviceConsumerMovieFeignApplication {
+
+	
+	public static void main(String[] args) {
+		SpringApplication.run(MicroserviceConsumerMovieFeignApplication.class, args);
+	}
+}
+
  
-坑：
-@GetMapping不支持 @PathVariable加上括号，还有参数。@PathVariable("id")
+1.坑：
+1）@GetMapping不支持 
+2）@PathVariable加上括号，还有参数。@PathVariable("id")
+3）当请求的接口参数是一个对象的时候，而且要求请求方法为GET，就算在Feign接口加入使用GET请求的注解，Feign还是会使用post方式。然后会报Request method 'POST' not supported。
+可以看csdn论坛：http://blog.csdn.net/u014281502/article/details/72896182
+
+2.覆写feign的默认配置：
+Spring Cloud的Feign支持的一个中心概念是命名客户端。
+每个feign client
+是整体的一部分，它们一起工作以按需联系远程服务器，具有一个名称，开发人员可以使用@FeignClient将其命名。
+Spring Cloud根据需要使用FeignClientsConfiguration为每个命名的客户端创建一个新的整体作为ApplicationContext。这包含（其他）feign.Decoder，feign.Encoder和feign.Contract。
+
+【案例】
+//不能放在springboot启动类同级包或者子包，不然会让全部的feign使用该配置
+@Configuration
+public class Configuration1 {
+  @Bean
+  public Contract feignContract() {
+	//修改契约，feign默认使用springmvc的契约，让feign支持springmvc的注解
+	//这里修改为其他契约，因此引用了Configuration1的feignclient将不能使用springmvc的注解
+    return new feign.Contract.Default();
+  }
+
+}
+
+//不能放在springboot启动类同级包或者子包，不然会让全部的feign使用该配置
+@Configuration
+public class Configuration2 {
+  @Bean
+  public BasicAuthRequestInterceptor basicAuthRequestInterceptor() {
+    return new BasicAuthRequestInterceptor("user", "password123");
+  }
+}
+
+@FeignClient(name = "xxxx", url = "http://localhost:8761/", configuration = Configuration2.class)
+public interface FeignClient2 {
+  @RequestMapping(value = "/eureka/apps/{serviceName}")
+  public String findServiceInfoFromEurekaByServiceName(@PathVariable("serviceName") String serviceName);
+}
+
+@FeignClient(name = "microservice-provider-user", configuration = Configuration1.class)
+public interface UserFeignClient {
+  //由于此feignclient使用了Configuration1配置，配置使用非springmvc的契约，因此不能使
+  //用springmvc的注解了，要用feign默认的注解
+  @RequestLine("GET /simple/{id}")
+  public User findById(@Param("id") Long id);
+}
+
+@RestController
+public class MovieController {
+
+  @Autowired
+  private UserFeignClient userFeignClient;
+
+  @Autowired
+  private FeignClient2 feignClient2;
+
+  @GetMapping("/movie/{id}")
+  public User findById(@PathVariable Long id) {
+    return this.userFeignClient.findById(id);
+  }
+
+  @GetMapping("/{serviceName}")
+  public String findServiceInfoFromEurekaByServiceName(@PathVariable String serviceName) {
+    return this.feignClient2.findServiceInfoFromEurekaByServiceName(serviceName);
+  }
+}
+
+@SpringBootApplication
+@EnableEurekaClient
+@EnableFeignClients
+public class ConsumerMovieFeignApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(ConsumerMovieFeignApplication.class, args);
+  }
+}
+
+3.feign logging
+注意：feign的log等级只有设置DEBUG才会响应
+logging:
+  level:
+    com.zj.springcloud.feign.UserFeignClient: DEBUG
+
+并且还需要加入以下Bean，不然无效果。
+ @Bean
+  Logger.Level feignLoggerLevel() {
+    return Logger.Level.FULL;
+  }
+
+效果：会类似mybatis那种log，显示发送什么请求到什么地址，返回什么内容。
+
+五、Hystrix保护应用
+ip+port/hystrix.stream可以访问到hystrix的信息。
+ip+port/health可以看到hystrix的一些健康指标。
+但是/health需要jar的支持，添加以下的依赖：
+<dependency>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+
+1.目前存在的问题：
+现在我们假设一下，服务提供者响应非常缓慢，那么消费者对提供者的请求就会被强制等待，直到服务返回。在高负载场景下，如果不做任何处理，这种问题很可能造成所有处理用户请求的线程都被耗竭，而不能响应用户的进一步请求。
+
+雪崩效应：在微服务架构中通常会有多个服务层调用，大量的微服务通过网络进行通信，从而支撑起整个系统。各个微服务之间也难免存在大量的依赖关系。然而任何服务都不是100%可用的，网络往往也是脆弱的，所以难免有些请求会失败。基础服务的故障导致级联故障，进而造成了整个系统的不可用，这种现象被称为服务雪崩效应。服务雪崩效应描述的是一种因服务提供者的不可用导致服务消费者的不可用，并将不可用逐渐放大的过程。
+
+2.解决方案：
+
+1）超时机制：通过网络请求其他服务时，都必须设置超时。正常情况下，一个远程调用一般在几十毫秒内就返回了。当依赖的服务不可用，或者因为网络问题，响应时间将会变得很长（几十秒）。而通常情况下，一次远程调用对应了一个线程/进程，如果响应太慢，那这个线程/进程就会得不到释放。而线程/进程都对应了系统资源，如果大量的线程/进程得不到释放，并且越积越多，服务资源就会被耗尽，从而导致深服务不可用。所以必须为每个请求设置超时。
+
+2）断路器模式（比较彻底的解决方案）
+试想一下，家庭里如果没有断路器，电流过载了（例如功率过大、短路等），电路不断开，电路就会升温，甚至是烧断电路、起火。有了断路器之后，当电流过载时，会自动切断电路（跳闸），从而保护了整条电路与家庭的安全。当电流过载的问题被解决后，只要将关闭断路器，电路就又可以工作了。
+?
+同样的道理，当依赖的服务有大量超时时，再让新的请求去访问已经没有太大意义，只会无谓的消耗现有资源。譬如我们设置了超时时间为1秒，如果短时间内有大量的请求（譬如50个）在1秒内都得不到响应，就往往意味着异常。此时就没有必要让更多的请求去访问这个依赖了，我们应该使用断路器避免资源浪费。
+?
+断路器可以实现快速失败，如果它在一段时间内侦测到许多类似的错误（譬如超时），就会强迫其以后的多个调用快速失败，不再请求所依赖的服务，从而防止应用程序不断地尝试执行可能会失败的操作，这样应用程序可以继续执行而不用等待修正错误，或者浪费CPU时间去等待长时间的超时。断路器也可以使应用程序能够诊断错误是否已经修正，如果已经修正，应用程序会再次尝试调用操作。
+?
+断路器模式就像是那些容易导致错误的操作的一种代理。这种代理能够记录最近调用发生错误的次数，然后决定使用允许操作继续，或者立即返回错误。
+
+【案例】
+@RestController
+public class MovieController {
+  @Autowired
+  private RestTemplate restTemplate;
+
+  @GetMapping("/movie/{id}")
+  @HystrixCommand(fallbackMethod = "findByIdFallback")
+  public User findById(@PathVariable Long id) {
+    return this.restTemplate.getForObject("http://microservice-provider-user/simple/" + id, User.class);
+  }
+
+  public User findByIdFallback(Long id) {
+    User user = new User();
+    user.setId(0L);
+    return user;
+  }
+}
+//EnableCircuitBreaker断路器的注解
+@SpringBootApplication
+@EnableEurekaClient
+@EnableCircuitBreaker
+public class ConsumerMovieRibbonApplication {
+
+  @Bean
+  @LoadBalanced
+  public RestTemplate restTemplate() {
+    return new RestTemplate();
+  }
+
+  public static void main(String[] args) {
+    SpringApplication.run(ConsumerMovieRibbonApplication.class, args);
+  }
+}
+
+六、Feign对Hystrix的支持
+【案例】
+
+
+
+
 
