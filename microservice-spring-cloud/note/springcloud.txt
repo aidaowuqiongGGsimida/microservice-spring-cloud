@@ -220,6 +220,7 @@ microservice-provider-user:
 四、Feign  [feIn]
 一个声明式的REST客户端，它让写一个web服务变得容易。创建一个接口并添加注解就可以开始使用Feign了。它提供可插拔的Feign注解和JAX-RS注解，并且提供可插拔的编码工具和解码工具。SpringCloud为Feign添加SpringMVC的注解以便使用同样的Http转化器。它还整合了Ribbon和Eureka来提供负载均衡。
 【案例】
+1）
 @RestController
 public class MovieController {
 
@@ -231,7 +232,7 @@ public class MovieController {
 		return userFeignClient.user(id);
 	}
 }
-
+2）feignclient接口
 @FeignClient("microservice-provider-user")
 public interface UserFeignClient {
 	
@@ -242,7 +243,7 @@ public interface UserFeignClient {
 	@RequestMapping(value="/user2",method=RequestMethod.GET)
 	public User user2(User user);
 }
-
+3）启动类
 @SpringBootApplication
 @EnableEurekaClient
 @EnableFeignClients
@@ -268,6 +269,7 @@ Spring Cloud的Feign支持的一个中心概念是命名客户端。
 Spring Cloud根据需要使用FeignClientsConfiguration为每个命名的客户端创建一个新的整体作为ApplicationContext。这包含（其他）feign.Decoder，feign.Encoder和feign.Contract。
 
 【案例】
+1）配置类1
 //不能放在springboot启动类同级包或者子包，不然会让全部的feign使用该配置
 @Configuration
 public class Configuration1 {
@@ -279,7 +281,7 @@ public class Configuration1 {
   }
 
 }
-
+2）配置类2
 //不能放在springboot启动类同级包或者子包，不然会让全部的feign使用该配置
 @Configuration
 public class Configuration2 {
@@ -288,13 +290,13 @@ public class Configuration2 {
     return new BasicAuthRequestInterceptor("user", "password123");
   }
 }
-
+3）feign接口类1
 @FeignClient(name = "xxxx", url = "http://localhost:8761/", configuration = Configuration2.class)
 public interface FeignClient2 {
   @RequestMapping(value = "/eureka/apps/{serviceName}")
   public String findServiceInfoFromEurekaByServiceName(@PathVariable("serviceName") String serviceName);
 }
-
+4）feign接口类2
 @FeignClient(name = "microservice-provider-user", configuration = Configuration1.class)
 public interface UserFeignClient {
   //由于此feignclient使用了Configuration1配置，配置使用非springmvc的契约，因此不能使
@@ -302,7 +304,7 @@ public interface UserFeignClient {
   @RequestLine("GET /simple/{id}")
   public User findById(@Param("id") Long id);
 }
-
+5）
 @RestController
 public class MovieController {
 
@@ -322,7 +324,7 @@ public class MovieController {
     return this.feignClient2.findServiceInfoFromEurekaByServiceName(serviceName);
   }
 }
-
+6）启动类
 @SpringBootApplication
 @EnableEurekaClient
 @EnableFeignClients
@@ -347,9 +349,10 @@ logging:
 效果：会类似mybatis那种log，显示发送什么请求到什么地址，返回什么内容。
 
 五、Hystrix保护应用
+
 ip+port/hystrix.stream可以访问到hystrix的信息。
 ip+port/health可以看到hystrix的一些健康指标。
-但是/health需要jar的支持，添加以下的依赖：
+但是需要jar的支持，添加以下的依赖：
 <dependency>
 	<groupId>org.springframework.boot</groupId>
 	<artifactId>spring-boot-starter-actuator</artifactId>
@@ -374,6 +377,7 @@ ip+port/health可以看到hystrix的一些健康指标。
 断路器模式就像是那些容易导致错误的操作的一种代理。这种代理能够记录最近调用发生错误的次数，然后决定使用允许操作继续，或者立即返回错误。
 
 【案例】
+1）直接在需要保护的方法上配置Hystrix的注解，配置并实现fallback方法
 @RestController
 public class MovieController {
   @Autowired
@@ -391,6 +395,7 @@ public class MovieController {
     return user;
   }
 }
+2）启动类
 //EnableCircuitBreaker断路器的注解
 @SpringBootApplication
 @EnableEurekaClient
@@ -409,9 +414,154 @@ public class ConsumerMovieRibbonApplication {
 }
 
 六、Feign对Hystrix的支持
+
+【案例】
+1）依赖：
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-netflix-hystrix</artifactId>
+</dependency>
+或者
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-hystrix</artifactId>
+</dependency>
+
+2）启动类加注解
+@SpringBootApplication
+@EnableEurekaClient
+@EnableFeignClients
+@EnableCircuitBreaker
+
+3）feign接口配置fallback
+@FeignClient(name = "microservice-provider-user", fallback = HystrixClientFallback.class)
+public interface UserFeignClient {
+	
+	@RequestMapping(value="/user/{id}",method=RequestMethod.GET)
+	public User user(@PathVariable("id") Long id);
+}
+
+4）fallback实现feign接口，返回断路器启动时的值
+@Component
+public class HystrixClientFallback implements UserFeignClient {
+
+	@Override
+	public User user(Long id) {
+		User user = new User();
+		user.setId(1L);
+		user.setName("Hystrix");
+		return user;
+	}
+}
+
+5）
+@RestController
+public class MovieController {
+
+	@Autowired
+	private UserFeignClient userFeignClient;
+	
+	@GetMapping("/movie/{id}")
+	public User movie(@PathVariable Long id){
+		return userFeignClient.user(id);
+	}
+	
+}
+
+
+yml文件：
+server:
+  port: 7941
+ 
+eureka:
+  client:
+    healthcheck:
+      enabled: true
+    service-url:
+      defaultZone: http://admin:zj123@localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${server.port}}
+    
+spring:
+  application:
+    name: microservice-consumer-movie-feign-hystrix
+#这里是我遇到的坑，视频中不需要加入以下配置就可以启动hystrix，但是我试了却报错误
+com.netflix.client.ClientException: Load balancer does not have available server for client加入以下配置后，完美解决。
+
+feign: 
+  hystrix: 
+    enabled: true
+
+1.配置单个feignclient禁用hystrix,而yml中配置enabled为false是全局的。
+
+//记得Configuration不能放在springboot的同级包或子包，不然会设置全局
+@Configuration
+public class FooConfiguration {
+    	@Bean
+	@Scope("prototype")
+	public Feign.Builder feignBuilder() {
+		return Feign.builder();
+	}
+}
+
+在feign中引入配置
+@FeignClient(name = "microservice-provider-user", fallback = HystrixClientFallback.class,configuration=FooConfiguration.class)
+public interface UserFeignClient {
+	
+	@RequestMapping(value="/user/{id}",method=RequestMethod.GET)
+	public User user(@PathVariable("id") Long id);
+
+}
+
+2.feign使用fallbackFactory属性打印fallback异常。
+官网对fallbackFactory的描述：If one needs access to the cause that made the fallback trigger, one can use the fallbackFactory attribute inside @FeignClient.
+如果您需要访问导致回退触发器的原因，那么您可以使用@feignclient内的fallbackFactory属性。
+
+1）feignclient接口
+
+@FeignClient(name = "hello", fallbackFactory = HystrixClientFallbackFactory.class)
+protected interface HystrixClient {
+	@RequestMapping(method = RequestMethod.GET, value = "/hello")
+	Hello iFailSometimes();
+}
+
+2）可以在FallbackFactory中打印日志，得知错误原因
+@Component
+static class HystrixClientFallbackFactory implements FallbackFactory<HystrixClient> {
+	@Override
+	public HystrixClient create(Throwable cause) {
+		System.out.println(cause.getMessage());
+		return new HystrixClient() {
+			@Override
+			public Hello iFailSometimes() {
+				return new Hello("fallback; reason was: " + cause.getMessage());
+			}
+		};
+	}
+}
+
+3.Hystrix Dashboard的使用与常见问题总结
+
 【案例】
 
+1）依赖：
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-hystrix-dashboard</artifactId>   
+</dependency>
+注意：官网教程是要添加spring-cloud-starter-hystrix-netflix-dashboard，但是加完后，一直提示需要加入版本号，网上搜了一下，发现是用上面这个。
 
+2）在启动类加上@EnableHystrixDashboard注解
 
+3）yml文件
+server:
+  port: 8100
 
+4）启动项目，然后访问地址：localhost:8100/hystrix访问到hystrix的dashboard，输入需要转化的hystrix.stream的地址，然后点Monitor Stream即可查看实时状态了。
+
+4.Turbine对集群的监控
+【案例】
+1）依赖
+spring-cloud-starter-turbine
 

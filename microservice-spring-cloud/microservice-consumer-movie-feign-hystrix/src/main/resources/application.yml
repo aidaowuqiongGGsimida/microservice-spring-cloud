@@ -14,3 +14,7 @@ eureka:
 spring:
   application:
     name: microservice-consumer-movie-feign-hystrix
+ 
+feign: 
+  hystrix: 
+    enabled: true

@@ -1,11 +1,11 @@
 package com.zj.springcloud.feign;
 
 
-import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
 import com.zj.springcloud.entity.User;
 
-//@Configuration
+@Component
 public class HystrixClientFallback implements UserFeignClient {
 
 	@Override

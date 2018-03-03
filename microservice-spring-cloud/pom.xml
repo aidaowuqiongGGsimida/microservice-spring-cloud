@@ -12,7 +12,7 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>1.5.10.RELEASE</version>
-		<relativePath/> 
+		<relativePath />
 	</parent>
 
 	<modules>
@@ -21,14 +21,10 @@
 		<module>microservice-server-eureka</module>
 		<module>microservice-provider-user2</module>
 		<module>microservice-consumer-movie-feign</module>
-		
-		
-		<module>
-			E:/workspace3/microservice-consumer-movie-feign-hystrix
-		</module>
-		<module>
-			E:/workspace3/microservice-consumer-movie-hystrix
-		</module>
+		<module>microservice-hystrix-dashboard</module>
+		<module>microservice-consumer-movie-feign-hystrix</module>
+		<module>microservice-consumer-movie-hystrix</module>
+		<module>microservice-hystrix-turbine</module>
 	</modules>
 
 
@@ -38,6 +34,18 @@
 		<java.version>1.8</java.version>
 	</properties>
 
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>Edgware.SR2</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+	
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
