@@ -613,6 +613,12 @@ turbine:
 
 3）启动hystrix-dashboard项目，将上面的地址输入进行可视化监控。
 
+七、Zuul介绍及使用
+
+1.Gateway简介
+博客地址：http://blog.daocloud.io/microservices-2/可以参考下对微服务API的介绍。
+
+2.
 
 
 
