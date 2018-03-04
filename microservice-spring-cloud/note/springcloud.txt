@@ -132,6 +132,7 @@ eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka
+  #让当前eurekaclient显示在eureka service的控制台上面时候，当鼠标移动到当前client时，显示ip地址，如果设置false则显示主机名
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${spring.application.instance_id:${server.port}}
@@ -560,8 +561,61 @@ server:
 
 4）启动项目，然后访问地址：localhost:8100/hystrix访问到hystrix的dashboard，输入需要转化的hystrix.stream的地址，然后点Monitor Stream即可查看实时状态了。
 
-4.Turbine对集群的监控
-【案例】
+4.Turbine对集群的监控（注意，是对hystrix的监控）
+【案例1 对单个Application集群的监控】
 1）依赖
-spring-cloud-starter-turbine
+<dependency>
+    <groupId>org.springframework.cloud</groupId>       
+	<artifactId>spring-cloud-starter-turbine</artifactId>
+</dependency>
+
+2）在启动类加上@EnableTurbine注解
+
+3）yml文件：
+server:
+  port: 8200
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://admin:zj123@localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${spring.application.instance_id:${server.port}}  
+
+spring:
+  application:
+    name: microservice-hystrix-turbine
+
+turbine:
+  aggregator:
+    cluster-config: MICROSERVICE-CONSUMER-MOVIE-HYSTRIX
+  appConfig: microservice-consumer-movie-hystrix
+
+4）启动项目，然后访问地址：http://localhost:8200/turbine.stream?cluster=MICROSERVICE-CONSUMER-MOVIE-HYSTRIX
+
+5）启动hystrix-dashboard项目，将上面的地址输入进行可视化监控。
+
+6）可以修改一下microservice-consumer-movie-hystrix项目的端口，然后再启动一个，然后访问新启动的项目，过一段时间，就可以查看到集群监控了。（可能会比较慢才会出现多个host）
+
+【案例2 对多个Application集群的监控】
+在案例1基础上，修改以下。
+
+1）yml文件：
+
+turbine:
+  aggregator:
+    cluster-config: default
+  appConfig: microservice-consumer-movie-hystrix,microservice-consumer-movie-feign-hystrix
+  cluster-name-expression: "'default'"
+
+2）启动项目，然后访问地址：http://localhost:8200/turbine.stream
+
+3）启动hystrix-dashboard项目，将上面的地址输入进行可视化监控。
+
+
+
+
+
+
 

@@ -11,7 +11,7 @@ eureka:
     
 spring:
   application:
-    name: microservice-consumer-movie-ribbon-with-hystrix
+    name: microservice-consumer-movie-hystrix
     
 
    
