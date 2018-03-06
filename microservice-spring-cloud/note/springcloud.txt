@@ -618,7 +618,98 @@ turbine:
 1.Gateway简介
 博客地址：http://blog.daocloud.io/microservices-2/可以参考下对微服务API的介绍。
 
-2.
+2.【案例】
+2.1） 依赖：
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-zuul</artifactId>
+</dependency>
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-eureka</artifactId>
+</dependency>
+
+2.2） 启动类
+@SpringBootApplication
+@EnableZuulProxy
+public class MicroserviceGatewayZuulApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(MicroserviceGatewayZuulApplication.class, args);
+	}
+}
+
+2.3） yml文件：
+spring:
+  application:
+    name: microservice-gateway-zuul
+server:
+  port: 7960
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://admin:zj123@localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+2.4） 启动microservice-provider-user项目，访问http://localhost:7910/user/1可以正常访问。
+
+2.5） 启动zuul项目，访问http://localhost:7960/microservice-provider-user/user/1可以访问到microservice-provider-user项目了。
+	
+2.6） 如果觉得url中microservice-provider-user太长，可以在zuul配置route。
+yml文件加入以下：
+zuul:
+  routes:
+    microservice-provider-user: /user/**
+2.7） 可以配置ignoredService: microservice-provider-user来禁止反向代理该服务
+
+2.8） 可以通过path+serviceid方式，更细粒度的配置（其实跟2.6没啥区别）
+zuul:
+  routes:
+    abc:
+	  path: /user/**
+	    serviceId: microservice-provider-user
+		
+2.9） zuul指定path+url以及指定可用的服务节点时如何负载均衡
+zuul:
+  routes:
+    abc:
+	  path: /user/**
+	    url: http://localhost:7910
+
+
+3.使用正则表达式指定路由规则
+
+3.1） 复制上面的项目，修改yml文件
+spring:
+  application:
+    name: microservice-gateway-zuul-reg-exp
+server:
+  port: 7961
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://admin:zj123@localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+3.2） 启动类加入：
+@Bean
+public PatternServiceRouteMapper serviceRouteMapper() {
+    return new PatternServiceRouteMapper(
+        "(?<name>^.+)-(?<version>v.+$)",
+        "${version}/${name}");
+}
+3.3） 修改microservice-provider-user项目的yml文件，将application的name修改为：
+ microservice-provider-user-v1
+
+3.4） 访问http://localhost:7961/v1/microservice-provider-user/user/1就可以访问到microservice-provider-user中的接口了。
+
+
+4.zuul路由的strip-prefix与order
+
+
+
 
 
 
